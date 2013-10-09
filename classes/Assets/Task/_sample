@@ -1,0 +1,123 @@
+<?php defined('SYSPATH') OR die('No direct script access.');
+
+/**
+ * Asset management.
+ *
+ * Examples:
+ * # Creates compressed assets
+ * Assets --do=migrate
+ * 
+ * Options:
+ *   --do      Function to be done.
+ * 
+ * Functions:
+ *   migrate     Creates compressed assets
+ * 
+ * @author     Gian Carlo Val Ebao
+ * @version    1.0
+ */
+class Task_Assets extends Assets_Task_Assets implements Assets_Task_Interface_Assets {
+    
+    const PUBLIC_READ = 'public-read';
+    const SOURCE_DIR = DOCROOT;
+    const TARGET_DIR = 'assets';
+    
+    private static function rmdir($dir)
+    {
+        if (!is_dir($dir))
+        {
+            return false;
+        }
+        
+        foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST) as $path)
+        {
+            $path->isFile() ? unlink($path->getPathname()) : rmdir($path->getPathname());
+        }
+        
+        rmdir($dir);
+    }
+    
+    private static function _message($message)
+    {
+        ob_end_flush();
+        echo $message ."\n";
+        ob_start();
+    }
+    
+    public function migrate($params)
+    {
+        self::_message("Cleaning up folder [" . self::SOURCE_DIR . self::TARGET_DIR . "]");
+        self::rmdir(self::SOURCE_DIR . self::TARGET_DIR . DIRECTORY_SEPARATOR . 'css');
+        self::rmdir(self::SOURCE_DIR . self::TARGET_DIR . DIRECTORY_SEPARATOR . 'js');
+        
+        $configs = array('default', 'dashboard');
+        
+        foreach ($configs as $group)
+        {
+            self::_message("Migrating [$group] from folder [" . self::SOURCE_DIR . self::TARGET_DIR . "]");
+            $this->process($group);
+        }
+        
+        self::_message("All Done!");
+    }
+    
+    protected function process($group)
+    {
+        $path_asset_contents = self::TARGET_DIR . DIRECTORY_SEPARATOR;
+        $devices = array('default', 'mobile');
+        
+        foreach ($devices as $device)
+        {
+            self::_message("    Device [$device].");
+            
+            $config = $path_asset_contents . $group;
+            $assets = Assets::parse_config($config, $device);
+            
+            $id = implode('.', array($group, $device, Assets::$version));
+            
+            $destination_css = $path_asset_contents . 'css';
+            if (!is_dir(self::SOURCE_DIR . $destination_css))
+            {
+                mkdir(self::SOURCE_DIR . $destination_css, 0755, true);
+            }
+            
+            $destination_js = $path_asset_contents . 'js';
+            if (!is_dir(self::SOURCE_DIR . $destination_js))
+            {
+                mkdir(self::SOURCE_DIR . $destination_js, 0755, true);
+            }
+            
+            if (!empty($assets['css']))
+            {
+                self::_message("      Creating file [$id.css].");
+                Assets::stylesheet($assets['css'], $id);
+                self::export($destination_css . DIRECTORY_SEPARATOR . $id . '.css', 'text/css');
+            }
+            
+            if (!empty($assets['js']))
+            {
+                self::_message("      Creating file [$id.js].");
+                Assets::script($assets['js'], $id);
+                self::export($destination_js . DIRECTORY_SEPARATOR . $id . '.js', 'application/x-javascript');
+            }
+        }
+    }
+    
+    protected static function export($id, $content_type = 'text/plain')
+    {
+        $bucket = S3_BUCKET_ASSETS;
+        self::_message("      Exporting file [$id] to [$bucket].");
+        
+        $client = AWS::factory()->get('S3');
+        $body = file_get_contents(self::SOURCE_DIR . $id);
+        $client->putObject(array(
+            'Bucket' => $bucket,
+            'Key'    => $id,
+            'Body'   => $body,
+            'ACL'    => self::PUBLIC_READ,
+            'CacheControl' => 'public, max-age=' . Date::YEAR,
+            'ContentType' => $content_type,
+            'Expires' => strtotime("+1 year"),
+        ));
+    }
+}
