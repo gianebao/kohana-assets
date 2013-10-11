@@ -131,7 +131,7 @@ class Assets_Core
 	public static function stylesheet($style, $output = null, $media = FALSE, $index = FALSE)
 	{
         // return html::link(self::glue($style, '.css'), 'stylesheet', 'text/css', 'screen', $media, $index);
-		return html::style(Assets::$dump . '/' . self::glue($style, '.css', $output), array('media' => 'screen'));
+		return HTML::style(Assets::$dump . '/' . self::glue($style, '.css', $output), array('media' => 'screen'));
 	}
 
 	/**
@@ -146,7 +146,7 @@ class Assets_Core
 	 */
 	public static function script($script, $output = null, $index = FALSE)
 	{
-        return html::script(Assets::$dump . '/' . self::glue($script, '.js', $output));
+        return HTML::script(Assets::$dump . '/' . self::glue($script, '.js', $output));
 	}
 
 	/**
