@@ -60,6 +60,18 @@ class Assets_Task_Assets extends Minion_Task {
         rmdir($dir);
     }
     
+    protected static function gzip($file, $body)
+    {
+        // Open the gz file (w9 is the highest compression)
+        $fp = gzopen($file, 'w9');
+        
+        // Compress the file
+        gzwrite($fp, $body);
+        
+        // Close the gz file and we are done
+        gzclose($fp);
+    }
+    
     protected static function _message($message)
     {
         ob_end_flush();
